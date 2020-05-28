@@ -1,13 +1,41 @@
 /** \mainpage TCP Server
  * 
  * \section introduction Introduction
- * This is the introduction
+ * TCP server is a basic concurrent TCP server written in C
  * 
- * \section starting_server Starting the Server
- * Starting the server
+ * \section building Building the server
+ * The server can be built using the make file.
+ * To build the makefile run the following command
+ * \code
+ * 
+ * make all 
+ * 
+ * \endcode
+ * 
+ * Alternatively the following command can be used:
+ * \code
+ * 
+ * make
+ * 
+ * \endcode
+ *
+ * The build command can also be supplied with the <b>THREAD_POOL_SIZE</b> parameter
+ * 
+ * \code
+ * 
+ * make THREAD_POOL_SIZE=20    # Compiles the code with 20 threads
+ * 
+ * \endcode
+ * 
+ * \section code_org Code Structure
+ * The code comprises of the following directories:
+ * - lib : Consists of all the library files
+ * - cmd : Consists of the server code
  * 
  * \section testing Testing the server
- * Testing section
+ * The current implementation of the server only is an echo server. 
+ * 
+ * To test this telnet can be used once the server is running
 */
 #include <stdio.h>
 #include <stdlib.h>

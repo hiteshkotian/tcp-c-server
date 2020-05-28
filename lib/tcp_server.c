@@ -14,7 +14,7 @@
 /**
  * Function to handle the client request
  * 
- * TODO : This will be added as a callback in the server, to implement various capabilities
+ * \todo This will be added as a callback in the server, to implement various capabilities
  * 
  * \param pclient_fd Client file descriptor
  */
