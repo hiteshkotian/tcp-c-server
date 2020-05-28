@@ -28,3 +28,4 @@ Docuemntation is generated using doxygen. Make sure doxygen is installed.
 - [ ] Create callbacks to handle the incoming requests.
 - [ ] Fix the latex build
 - [ ] Add unit tests
+- [ ] Using logging instead of printing to standard out
