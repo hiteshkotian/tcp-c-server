@@ -14,10 +14,8 @@ connection:
 
 doc:
 	doxygen doc-config
-	# make -C latex
 
 clean:
 	rm *.o
 	rm server
-	rm -rf html
-	rm -rf latex
+	rm -rf docs
