@@ -1,0 +1,5 @@
+html/
+latex/
+server
+*.o
+.DS_Store
