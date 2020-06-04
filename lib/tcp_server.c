@@ -38,14 +38,20 @@ void *handle_tcp_request(void* pclient_fd, server_t *server)
 
     memcpy(ctx, server->cb_ctx, sizeof(server->cb_ctx));
     
+    // TODO fix buffer errors and issues with ending the stream.
+    // TODO add timeouts
     while((bytes_read = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
         fprintf(stdout, "Read : %zu\n", bytes_read);
+        if(bytes_read == 0) {
+            break;
+        }
         server->cb_fn(client_fd, (uint8_t *)buffer, bytes_read, ctx);
 
         msg_size += bytes_read;
-        if (msg_size > BUFFER_SIZE-1 || buffer[msg_size-1] == '\n') break;
-        fprintf(stdout, "Following up\n");
         memset(buffer, 0, BUFFER_SIZE);
+        if (buffer[msg_size-1] == '\n') break;
+        // fprintf(stdout, "Following up\n");
+        
     }
 
     #if __APPLE__
