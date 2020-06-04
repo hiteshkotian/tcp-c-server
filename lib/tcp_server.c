@@ -7,9 +7,9 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 
-#include "tcp_server.h"
+#include "lib/tcp_server.h"
 
-#define BUFFER_SIZE 4086
+#define BUFFER_SIZE 50
 
 /**
  * Function to handle the client request
@@ -18,7 +18,7 @@
  * 
  * \param pclient_fd Client file descriptor
  */
-void *handle_tcp_request(void* pclient_fd)
+void *handle_tcp_request(void* pclient_fd, server_t *server)
 {
     int client_fd = *(int *)pclient_fd;
     free(pclient_fd);
@@ -26,13 +26,26 @@ void *handle_tcp_request(void* pclient_fd)
     char buffer[BUFFER_SIZE];
     size_t bytes_read;
     int msg_size = 0;
+
+    void *ctx = NULL;
+
+    ctx = malloc(sizeof(server->cb_ctx));
+    if (!ctx) {
+        fprintf(stdout, "Internal error getting context\n");
+        close(client_fd);
+        return NULL;
+    }
+
+    memcpy(ctx, server->cb_ctx, sizeof(server->cb_ctx));
     
-    while((bytes_read = read(client_fd, buffer+msg_size, 
-                                sizeof(buffer)-msg_size-1)) > 0) {
+    while((bytes_read = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
         fprintf(stdout, "Read : %zu\n", bytes_read);
+        server->cb_fn(client_fd, (uint8_t *)buffer, bytes_read, ctx);
 
         msg_size += bytes_read;
         if (msg_size > BUFFER_SIZE-1 || buffer[msg_size-1] == '\n') break;
+        fprintf(stdout, "Following up\n");
+        memset(buffer, 0, BUFFER_SIZE);
     }
 
     #if __APPLE__
@@ -42,10 +55,14 @@ void *handle_tcp_request(void* pclient_fd)
     buffer[msg_size-1] = 0;
     #endif
 
+    server->cb_fn(client_fd, NULL, 0, ctx);
+
     fprintf(stdout, "\n\nClient sent [%d] : %s\n", msg_size, buffer);
     fflush(stdout);
+
+    server->destroy_fn(ctx);
     
-    write(client_fd, buffer, msg_size);
+    // write(client_fd, buffer, msg_size);
 
     close(client_fd);
     return NULL;
@@ -72,7 +89,7 @@ void* thread_function(void *args)
             fprintf(stdout, "Handling %d\n", client_fd);
             int *pclient_fd = malloc(sizeof(int));
             *pclient_fd = client_fd;
-            handle_tcp_request(pclient_fd);
+            handle_tcp_request(pclient_fd, server);
         }
         fprintf(stdout, "Fetching connections in queue\n");
     }
@@ -94,7 +111,10 @@ void initialize_thread_pool(server_t *server)
     server->condition_var = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 }
 
-server_t *create_server(int port)
+// server_t *create_server(int port)
+server_t 
+*create_server(int port, callback cb_fn, 
+                destroy_ctx destroy_fn, void *cb_ctx)
 {
     server_t *server;
     server = malloc(sizeof(server_t));
@@ -107,6 +127,10 @@ server_t *create_server(int port)
 
     server->socket_fd = 0;
     server->port = port;
+
+    server->cb_fn = cb_fn;
+    server->destroy_fn = destroy_fn;
+    server->cb_ctx = cb_ctx;
 
     return server;
 }

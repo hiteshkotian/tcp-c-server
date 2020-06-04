@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "./connection_queue.h"
+#include "lib/connection_queue.h"
 
 /**
  * Create a new connection object
@@ -148,6 +148,7 @@ void free_connection_queue(connection_queue_t *connection_queue)
     }
 
     free(connection_queue);
+    connection_queue = NULL;
 }
 
 int enqueue(connection_queue_t *connection_queue, int connection_fd)
@@ -187,6 +188,7 @@ int deque(connection_queue_t *connection_queue)
 
         // free(connection);
         print_queue(connection_queue);
+        connection_free(connection);
 
     }
     return ret;

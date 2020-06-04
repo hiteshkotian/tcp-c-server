@@ -8,13 +8,19 @@
 
 #include <pthread.h>
 
-#include "connection_queue.h"
+#include "lib/connection_queue.h"
 
 /// Thread pool size. Defaults to 10 but can be
 /// configured at compile time
 #ifndef THREAD_POOL_SIZE
 #define THREAD_POOL_SIZE 10
 #endif
+
+// Callback function for the thread
+typedef int (*callback) (int fd, uint8_t *data, size_t len, void *arg);
+
+// Destructor functon for thread callback arguments
+typedef int (*destroy_ctx) (void *ctx);
 
 /**
  * Server structure
@@ -35,6 +41,11 @@ typedef struct server_t_
 
     pthread_mutex_t mutex;
     pthread_cond_t condition_var;
+
+    // Callback functions
+    callback cb_fn;
+    void *cb_ctx;
+    destroy_ctx destroy_fn;
 } server_t;
 
 /**
@@ -44,7 +55,7 @@ typedef struct server_t_
  * 
  * \return server instance on success otherwise NULL
  */
-server_t *create_server(int port);
+server_t *create_server(int port, callback cb_fn, destroy_ctx destroy_ctx, void *cb_ctx);
 
 /**
  * Deallocates the resources allocated to the server
