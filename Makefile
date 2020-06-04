@@ -1,16 +1,21 @@
 CC=gcc
 THREAD_POOL_SIZE=5
+CFLAGS=-Wall -I.
 
 server: tcp_server
-	gcc -Wall -o server.o -c ./cmd/server_cli.c
-	gcc -Wall -o server server.o tcp_server.o connection.o \
+	$(CC) $(CFLAGS) -o server.o -c ./cmd/server_cli.c
+	$(CC) $(CFLAGS) -o server server.o tcp_server.o connection.o \
 		-D THREAD_POOL_SIZE=$(THREAD_POOL_SIZE)
 
+queue_test: connection
+	$(CC) $(CFLAGS) -o queue_test.o -c ./test/queue_test.c
+	gcc -o queue_test queue_test.o connection.o
+
 tcp_server: connection
-	gcc -Wall -o tcp_server.o -c ./lib/tcp_server.c
+	$(CC) $(CFLAGS) -o tcp_server.o -c ./lib/tcp_server.c -D THREAD_POOL_SIZE=$(THREAD_POOL_SIZE)
 
 connection: 
-	gcc -Wall -o connection.o -c ./lib/connection_queue.c
+	$(CC) $(CFLAGS) -o connection.o -c ./lib/connection_queue.c
 
 doc:
 	doxygen doc-config
