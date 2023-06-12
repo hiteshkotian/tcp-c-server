@@ -1,26 +1,24 @@
-CC=gcc
+CC=gcc -g
 THREAD_POOL_SIZE=5
 CFLAGS=-Wall -I.
+BIN = server
+DEPS = lib/connection_queue.o lib/tcp_server.o cmd/server_cli.o
 
-server: tcp_server
-	$(CC) $(CFLAGS) -o server.o -c ./cmd/server_cli.c
-	$(CC) $(CFLAGS) -o server server.o tcp_server.o connection.o \
-		-D THREAD_POOL_SIZE=$(THREAD_POOL_SIZE)
+.PHONY: $(BIN) doc clean
 
-queue_test: connection
-	$(CC) $(CFLAGS) -o queue_test.o -c ./test/queue_test.c
-	gcc -o queue_test queue_test.o connection.o
+default: all
 
-tcp_server: connection
-	$(CC) $(CFLAGS) -o tcp_server.o -c ./lib/tcp_server.c -D THREAD_POOL_SIZE=$(THREAD_POOL_SIZE)
+all: $(BIN)
 
-connection: 
-	$(CC) $(CFLAGS) -o connection.o -c ./lib/connection_queue.c
+$(BIN): $(DEPS)
+	$(CC) $(CFLAGS) -o $@ $^ 
+	# -D THREAD_POOL_SIZE=$(THREAD_POOL_SIZE)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $< -D THREAD_POOL_SIZE=$(THREAD_POOL_SIZE)
 
 doc:
 	doxygen doc-config
 
 clean:
-	rm *.o
-	rm server
-	rm -rf docs
+	rm -rf $(DEPS) $(BIN) docs || true

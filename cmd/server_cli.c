@@ -47,12 +47,15 @@
 
 #define PORT 8989
 
+static const char END_TOKEN[] = "END\r\n";
+
 /** Server instance **/
 static server_t *server;
 
 typedef enum server_state_t {
   new = 0,
-  in_progress = 1
+  in_progress = 1,
+  terminating = 2
 } server_state;
 
 typedef struct echo_server_ctx_t
@@ -138,12 +141,13 @@ void register_signal()
 /**
  * Echo server callback to handle requests
  */
-int echo_server_callback(int fd, uint8_t *data, size_t len, void *arg)
+callbackstatus echo_server_callback(int fd, uint8_t *data, size_t len, void *arg)
 {
   fprintf(stdout, "Handling in the echo server\n");
-  int status = 0;
+  callbackstatus status = CONN_CONTINUE;
 
   echo_server_ctx *ctx = (echo_server_ctx *)arg;
+
   fprintf(stdout, "The state is : %d\n", ctx->state);
   switch(ctx->state) {
     case new:
@@ -154,23 +158,44 @@ int echo_server_callback(int fd, uint8_t *data, size_t len, void *arg)
       if(data != NULL) {
         int available = 4096 - ctx->received_size;
         if(len > available) {
-          status = -2;
+          status = CONN_ERROR;
         } else {
+          fprintf(stdout, "Adding data in %s\n", ctx->data);
+          if(ctx->data == NULL) {
+            ctx->data = malloc(4096);
+          }
           memcpy((ctx->data + ctx->received_size), data, len);
           fprintf(stdout, "The buffer is : %s\n", ctx->data);
           ctx->received_size += len;
         }
+
+        size_t END_TOKEN_LEN = strlen(END_TOKEN);
+        
+        if(len >= END_TOKEN_LEN) {
+            char *end_char = (char*)data + len - END_TOKEN_LEN;
+            if(strncmp(end_char, END_TOKEN, END_TOKEN_LEN) == 0) {
+                printf("Received end signal...terminating\n");
+                status = CONN_END;
+            }
+        }
       } else {
+        if (!ctx->data) {
+          fprintf(stdout, "Data is null for some reason\n");
+        }
         fprintf(stdout, "This is what we have : %s\n", (uint8_t *)ctx->data);
-        sleep(1);
+        // sleep(1);
         ctx->end_time = time(NULL);
         // Cleanup
         write(fd, ctx->data, ctx->received_size);
 
         time_t tl = ctx->end_time - ctx->start_time;
         fprintf(stdout, "Time : (%ld - %ld) = %ld ms", ctx->end_time, ctx->start_time, tl);
-        // close(fd);
       }
+      break;
+    case terminating:
+      fprintf(stdout, "Terminating...");
+      status = CONN_END;
+      break;
   }
   return status; 
 }
