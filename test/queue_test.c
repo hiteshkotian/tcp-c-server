@@ -1,29 +1,49 @@
 #include <stdio.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <setjmp.h>
+#include <cmocka.h>
+#include <stdlib.h>
 
 #include "../lib/connection_queue.h"
 
-int main()
-{
+void connection_queue_test(void **state) {
+    (void) state; // ignore
     connection_queue_t *queue;
+    int enqeue_status = 0;
+    int deqeue_status = 0;
 
     queue = create_connection_queue();
-    fprintf(stdout, "Connection queue created\n");
+    assert_non_null(queue);
 
-    enqueue(queue, 10);
-    enqueue(queue, 20);
-    enqueue(queue, 30);
+    enqeue_status = enqueue(queue, 10);
+    assert_int_equal(enqeue_status, 0);
 
-    int val;
+    enqeue_status = enqueue(queue, 20);
+    assert_int_equal(enqeue_status, 0);
 
-    val = deque(queue);
-    fprintf(stdout, "DEQUEUED : %d\n", val);
-    val = deque(queue);
-    fprintf(stdout, "DEQUEUED : %d\n", val);
-    val = deque(queue);
-    fprintf(stdout, "DEQUEUED : %d\n", val);
-    val = deque(queue);
-    fprintf(stdout, "DEQUEUED : %d\n", val);
+    enqeue_status = enqueue(queue, 30);
+    assert_int_equal(enqeue_status, 0);
+
+    deqeue_status = deque(queue);
+    assert_int_equal(deqeue_status, 10);
+    
+    deqeue_status = deque(queue);
+    assert_int_equal(deqeue_status, 20);
+
+    deqeue_status = deque(queue);
+    assert_int_equal(deqeue_status, 30);
+
+    deqeue_status = deque(queue);
+    assert_int_equal(deqeue_status, -1);
     
     free_connection_queue(queue);
-    fprintf(stdout, "Connection queue freed\n");
+}
+
+int main() {
+    const struct CMUnitTest tests[] = {
+        cmocka_unit_test(connection_queue_test),
+    };
+
+    return cmocka_run_group_tests(tests, NULL, NULL);
 }

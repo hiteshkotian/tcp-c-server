@@ -15,7 +15,15 @@ connection:
 doc:
 	doxygen doc-config
 
+# TODO UPDATE ME
+test: server
+	$(CC) $(CFLAGS) -c -o test/queue_test.o test/queue_test.c
+	$(CC) $(CFLAGS) -o test/queue_test test/queue_test.o lib/connection_queue.o -lcmocka
+	./test/queue_test
+
 clean:
 	rm *.o
 	rm server
 	rm -rf docs
+	rm test/queue_test.o
+	rm test/queue_test
