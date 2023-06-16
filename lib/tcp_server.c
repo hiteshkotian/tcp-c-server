@@ -7,9 +7,11 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 
-#include "tcp_server.h"
+#include <errno.h>
 
-#define BUFFER_SIZE 4086
+#include "lib/tcp_server.h"
+
+#define BUFFER_SIZE 50
 
 /**
  * Function to handle the client request
@@ -18,36 +20,53 @@
  * 
  * \param pclient_fd Client file descriptor
  */
-void *handle_tcp_request(void* pclient_fd)
+void *handle_tcp_request(void* pclient_fd, server_t *server)
 {
     int client_fd = *(int *)pclient_fd;
     free(pclient_fd);
 
     char buffer[BUFFER_SIZE];
     size_t bytes_read;
-    int msg_size = 0;
     
-    while((bytes_read = read(client_fd, buffer+msg_size, 
-                                sizeof(buffer)-msg_size-1)) > 0) {
+    pthread_mutex_lock(&server->ctx_lock);
+    void *handler_ctx = NULL;
+    handler_ctx = calloc(1, sizeof(server->cb_ctx));
+    memcpy(handler_ctx, server->cb_ctx, sizeof(server->cb_ctx));
+
+    pthread_mutex_unlock(&server->ctx_lock);
+
+    // TODO fix buffer errors and issues with ending the stream.
+    // TODO add timeouts
+    while((bytes_read = read(client_fd, buffer, BUFFER_SIZE)) > 0) {
         fprintf(stdout, "Read : %zu\n", bytes_read);
 
-        msg_size += bytes_read;
-        if (msg_size > BUFFER_SIZE-1 || buffer[msg_size-1] == '\n') break;
+        if(bytes_read == 0) {
+            break;
+        }
+
+        callbackstatus status = server->cb_fn(client_fd, (uint8_t *)buffer, bytes_read, handler_ctx);
+        bytes_read = 0;
+        memset(buffer, 0, BUFFER_SIZE);
+
+        // if(!keep_processing) break;
+        if (status == CONN_END || status == CONN_ERROR) {
+            fprintf(stdout, "Terminating connection\n");
+            break;
+        } else if (status == CONN_TERMINATE) {
+            fprintf(stdout, "Connection terminated\n");
+        } else {
+            fprintf(stdout, "Guess I am going to conitnue\n");
+        }
     }
 
-    #if __APPLE__
-    // Apple telnet send '\r\n'
-    buffer[msg_size-2] = 0;
-    #else
-    buffer[msg_size-1] = 0;
-    #endif
+    // buffer[msg_size-1] = 0;
+    server->cb_fn(client_fd, NULL, 0, handler_ctx);
 
-    fprintf(stdout, "\n\nClient sent [%d] : %s\n", msg_size, buffer);
-    fflush(stdout);
-    
-    write(client_fd, buffer, msg_size);
+    server->destroy_fn(handler_ctx);
+    handler_ctx = NULL;
 
     close(client_fd);
+    client_fd = -1;
     return NULL;
 }
 
@@ -72,7 +91,7 @@ void* thread_function(void *args)
             fprintf(stdout, "Handling %d\n", client_fd);
             int *pclient_fd = malloc(sizeof(int));
             *pclient_fd = client_fd;
-            handle_tcp_request(pclient_fd);
+            handle_tcp_request(pclient_fd, server);
         }
         fprintf(stdout, "Fetching connections in queue\n");
     }
@@ -85,6 +104,7 @@ void* thread_function(void *args)
  */
 void initialize_thread_pool(server_t *server)
 {
+    fprintf(stdout, "Creating %d threads\n", THREAD_POOL_SIZE);
     int i = 0;
     for (i = 0; i < THREAD_POOL_SIZE; i++) {
         pthread_create(&(server->thread_pool[i]), NULL, thread_function, server);
@@ -94,7 +114,10 @@ void initialize_thread_pool(server_t *server)
     server->condition_var = (pthread_cond_t) PTHREAD_COND_INITIALIZER;
 }
 
-server_t *create_server(int port)
+// server_t *create_server(int port)
+server_t 
+*create_server(int port, callback cb_fn, 
+                destroy_ctx destroy_fn, void *cb_ctx)
 {
     server_t *server;
     server = malloc(sizeof(server_t));
@@ -107,6 +130,10 @@ server_t *create_server(int port)
 
     server->socket_fd = 0;
     server->port = port;
+
+    server->cb_fn = cb_fn;
+    server->destroy_fn = destroy_fn;
+    server->cb_ctx = cb_ctx;
 
     return server;
 }
@@ -134,10 +161,17 @@ int start_server(server_t *server)
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(server->port);
 
+    int socket_option = 1;
+    if(setsockopt(server->socket_fd, SOL_SOCKET, SO_REUSEADDR, &socket_option, sizeof(socket_option)) < 0) {
+        fprintf(stdout, "Uable to set socket option : %s\n", strerror(errno));
+        return -3;
+    }
+
     // bind the socket
     if (bind(server->socket_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
         fprintf(stdout, "Bind error\n");
-        return -3;
+        free_server(server);
+        exit(-1);
     }
 
     if(listen(server->socket_fd, 10) < 0) {
@@ -173,6 +207,9 @@ void free_server(server_t *server)
     if(!server) {
         return;
     }
+
+    close(server->socket_fd);
+    server->socket_fd = -1;
 
     free_connection_queue(server->queue);
     server->queue = NULL;

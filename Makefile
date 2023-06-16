@@ -1,21 +1,30 @@
-CC=gcc
+CC=gcc -g
 THREAD_POOL_SIZE=5
+CFLAGS=-Wall -I.
+BIN = server
+DEPS = lib/connection_queue.o lib/tcp_server.o cmd/server_cli.o
 
-server: tcp_server
-	gcc -Wall -o server.o -c ./cmd/server_cli.c
-	gcc -Wall -o server server.o tcp_server.o connection.o \
-		-D THREAD_POOL_SIZE=$(THREAD_POOL_SIZE)
+.PHONY: $(BIN) doc clean
 
-tcp_server: connection
-	gcc -Wall -o tcp_server.o -c ./lib/tcp_server.c
+default: all
 
-connection: 
-	gcc -Wall -o connection.o -c ./lib/connection_queue.c
+all: $(BIN)
+
+$(BIN): $(DEPS)
+	$(CC) $(CFLAGS) -o $@ $^ 
+	# -D THREAD_POOL_SIZE=$(THREAD_POOL_SIZE)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $< -D THREAD_POOL_SIZE=$(THREAD_POOL_SIZE)
 
 doc:
 	doxygen doc-config
 
+# TODO UPDATE ME
+test: $(DEPS)
+	$(CC) $(CFLAGS) -c -o test/queue_test.o test/queue_test.c
+	$(CC) $(CFLAGS) -o test/queue_test test/queue_test.o lib/connection_queue.o -lcmocka
+	./test/queue_test
+
 clean:
-	rm *.o
-	rm server
-	rm -rf docs
+	rm -rf $(DEPS) $(BIN) docs test/*.o queue_test || true

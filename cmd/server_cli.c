@@ -40,13 +40,80 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <string.h>
+#include <unistd.h>
 
-#include "../lib/tcp_server.h"
+#include "lib/tcp_server.h"
 
 #define PORT 8989
 
+static const char END_TOKEN[] = "END\r\n";
+
 /** Server instance **/
-server_t *server;
+static server_t *server;
+
+typedef enum server_state_t {
+  new = 0,
+  in_progress = 1,
+  terminating = 2
+} server_state;
+
+typedef struct echo_server_ctx_t
+{
+  uint8_t *data;
+  size_t received_size;
+  time_t start_time;
+  time_t end_time;
+
+  server_state state;
+} echo_server_ctx;
+
+
+/**
+ * Create a new echo server context
+ */
+echo_server_ctx 
+*create_echo_server_ctx()
+{
+  echo_server_ctx *ctx;
+  ctx = malloc(sizeof(echo_server_ctx));
+  if(ctx == NULL) {
+    fprintf(stdout, "Unable to create echo context\n");
+    return NULL;
+  }
+
+  // We will initialize the buffer only when
+  // handling the request  
+  ctx->data = NULL;
+  ctx->received_size = 0;
+  ctx->start_time = 0;
+  ctx->end_time = 0;
+
+  ctx->state = new;
+  return ctx;
+}
+
+/**
+ * Free up the space allocated to the 
+ * echo server context
+ */
+int free_echo_server_ctx(void *ctx)
+{
+  int status = 0;
+  if(ctx == NULL) {
+    return status;
+  }
+
+  echo_server_ctx *server_ctx = (echo_server_ctx *) ctx;
+  if(server_ctx->data != NULL) {
+    free(server_ctx->data);
+    server_ctx->data = NULL;
+  }
+
+  free(server_ctx);
+  server_ctx = NULL;
+  return status;
+}
 
 /**
  * Signal handler
@@ -71,10 +138,79 @@ void register_signal()
     signal(SIGQUIT, handle_signal);
 }
 
+/**
+ * Echo server callback to handle requests
+ */
+callbackstatus echo_server_callback(int fd, uint8_t *data, size_t len, void *arg)
+{
+  fprintf(stdout, "Handling in the echo server\n");
+  callbackstatus status = CONN_CONTINUE;
+
+  echo_server_ctx *ctx = (echo_server_ctx *)arg;
+
+  fprintf(stdout, "The state is : %d\n", ctx->state);
+  switch(ctx->state) {
+    case new:
+      ctx->data = malloc(4096);
+      ctx->start_time = time(NULL);
+      ctx->state = in_progress;
+    case in_progress:
+      if(data != NULL) {
+        int available = 4096 - ctx->received_size;
+        if(len > available) {
+          status = CONN_ERROR;
+        } else {
+          fprintf(stdout, "Adding data in %s\n", ctx->data);
+          if(ctx->data == NULL) {
+            ctx->data = malloc(4096);
+          }
+          memcpy((ctx->data + ctx->received_size), data, len);
+          fprintf(stdout, "The buffer is : %s\n", ctx->data);
+          ctx->received_size += len;
+        }
+
+        size_t END_TOKEN_LEN = strlen(END_TOKEN);
+        
+        if(len >= END_TOKEN_LEN) {
+            char *end_char = (char*)data + len - END_TOKEN_LEN;
+            if(strncmp(end_char, END_TOKEN, END_TOKEN_LEN) == 0) {
+                printf("Received end signal...terminating\n");
+                status = CONN_END;
+            }
+        }
+      } else {
+        if (!ctx->data) {
+          fprintf(stdout, "Data is null for some reason\n");
+        }
+        fprintf(stdout, "This is what we have : %s\n", (uint8_t *)ctx->data);
+        // sleep(1);
+        ctx->end_time = time(NULL);
+        // Cleanup
+        write(fd, ctx->data, ctx->received_size);
+
+        time_t tl = ctx->end_time - ctx->start_time;
+        fprintf(stdout, "Time : (%ld - %ld) = %ld ms", ctx->end_time, ctx->start_time, tl);
+      }
+      break;
+    case terminating:
+      fprintf(stdout, "Terminating...");
+      status = CONN_END;
+      break;
+  }
+  return status; 
+}
+
 int main()
 {
     // Create instance of server
-    server = create_server(8989);
+    echo_server_ctx *ctx = NULL;
+    ctx = create_echo_server_ctx();
+
+    if(ctx == NULL) {
+      perror("Unable to initialize the server context\n");
+    }
+
+    server = create_server(8989, &echo_server_callback, &free_echo_server_ctx, ctx);
 
     // server = create_server(PORT);
     if (!server) {
