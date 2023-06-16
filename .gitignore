@@ -3,3 +3,6 @@ latex/
 server
 *.o
 .DS_Store
+.vscode/
+test/queue_test
+test/*.o
