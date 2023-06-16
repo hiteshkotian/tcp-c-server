@@ -40,18 +40,6 @@ void connection_queue_test(void **state) {
     free_connection_queue(queue);
 }
 
-int teardown(void **state) {
-    printf("tearing down\n");
-    int *my_int = *state;
-    if (my_int == NULL) {
-        printf("My int is null\n");
-    } else {
-        printf("My int is not null : %d\n", *my_int);
-        free(my_int);
-    }
-    return 0;
-}
-
 int main() {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(connection_queue_test),
