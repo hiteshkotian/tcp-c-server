@@ -20,5 +20,11 @@ $(BIN): $(DEPS)
 doc:
 	doxygen doc-config
 
+# TODO UPDATE ME
+test: $(DEPS)
+	$(CC) $(CFLAGS) -c -o test/queue_test.o test/queue_test.c
+	$(CC) $(CFLAGS) -o test/queue_test test/queue_test.o lib/connection_queue.o -lcmocka
+	./test/queue_test
+
 clean:
-	rm -rf $(DEPS) $(BIN) docs || true
+	rm -rf $(DEPS) $(BIN) docs test/*.o queue_test || true
